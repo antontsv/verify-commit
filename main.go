@@ -6,6 +6,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -32,13 +33,8 @@ func command(ctx context.Context, dir, command string) (out, err string) {
 
 func main() {
 
-	dir := flag.String("dir", "/tmp/", "Directory where to check for commit signature")
-
-	flag.Parse()
-
-	if len(publicKey) <= 0 {
-		log.Fatal("No public key was set during script compile time")
-	}
+	dir := flag.String("dir", "", "Directory where to check for commit signature")
+	pubKeyFile := flag.String("pubKeyFile", "", "Location of armored PGP public key file you want to use. Note: this utility has a default key included.")
 
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer mainCancel()
@@ -50,6 +46,24 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Got signal: %v, canceling processes in flight...\n", s)
 		mainCancel()
 	}()
+
+	flag.Parse()
+
+	if len(*dir) <= 0 {
+		log.Fatal("Please provide -dir for repository where to check for commit signature")
+	}
+
+	if len(*pubKeyFile) > 0 {
+		data, err := ioutil.ReadFile(*pubKeyFile)
+		if err != nil {
+			log.Fatalf("Error reading public key file: %v\n", err)
+		}
+		publicKey = string(data)
+	}
+
+	if len(publicKey) <= 0 {
+		log.Fatal("No public key was set during script compile time, and not prodived at runtime")
+	}
 
 	keyring, err := openpgp.ReadArmoredKeyRing(strings.NewReader(publicKey))
 	if err != nil {
@@ -90,19 +104,26 @@ func main() {
 	if e != "" {
 		log.Fatalf("Cannot open repo at dir '%s': %s", *dir, e)
 	}
-	prefix := "gpgsig "
-	startMarker := "-----BEGIN PGP SIGNATURE-----\n"
-	endMarker := "-----END PGP SIGNATURE-----\n"
+	const (
+		prefix      = "gpgsig "
+		startMarker = "-----BEGIN PGP SIGNATURE-----\n"
+		endMarker   = "-----END PGP SIGNATURE-----\n"
+	)
 	sigStart := strings.Index(o, fmt.Sprintf("%s%s", prefix, startMarker))
 	sigEnd := strings.Index(o, endMarker)
 	if sigStart < 0 || sigEnd <= sigStart {
 		log.Fatalf("HEAD commit in %s does not have valid signature\n", *dir)
 	}
-	signature := o[sigStart+len(prefix):sigStart+len(prefix)+len(startMarker)] +
-		// there is extra leading space we need to remove
-		strings.ReplaceAll(o[sigStart+len(prefix)+len(startMarker):sigEnd], " ", "") +
-		o[sigEnd:sigEnd+len(endMarker)]
+
 	body := o[0:sigStart] + o[sigEnd+len(endMarker):]
+
+	sigStart = sigStart + len(prefix)
+	signature :=
+		o[sigStart:sigStart+len(startMarker)] +
+			// Here is actual signature content, but
+			// we need to remove spaces (git cat-file has whitespace at the beninning of each line)
+			strings.ReplaceAll(o[sigStart+len(startMarker):sigEnd], " ", "") +
+			o[sigEnd:sigEnd+len(endMarker)]
 
 	entity, err := openpgp.CheckArmoredDetachedSignature(
 		keyring,
