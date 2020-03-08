@@ -95,6 +95,9 @@ func main() {
 	endMarker := "-----END PGP SIGNATURE-----\n"
 	sigStart := strings.Index(o, fmt.Sprintf("%s%s", prefix, startMarker))
 	sigEnd := strings.Index(o, endMarker)
+	if sigStart < 0 || sigEnd <= sigStart {
+		log.Fatalf("HEAD commit in %s does not have valid signature\n", *dir)
+	}
 	signature := o[sigStart+len(prefix):sigStart+len(prefix)+len(startMarker)] +
 		// there is extra leading space we need to remove
 		strings.ReplaceAll(o[sigStart+len(prefix)+len(startMarker):sigEnd], " ", "") +
@@ -112,7 +115,7 @@ func main() {
 	}
 	for _, v := range entity.Identities {
 		if v.UserId != nil {
-			fmt.Printf("Verified signature by %s\n", v.UserId.Name)
+			fmt.Printf("HEAD commit in %s has verified signature by %s\n", *dir, v.UserId.Name)
 		}
 	}
 
