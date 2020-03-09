@@ -23,6 +23,7 @@ package cmd
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 
 	"github.com/spf13/cobra"
@@ -41,7 +42,11 @@ This command will verify signature on the commit before you decide to use files 
 		key := cmd.Flag("key")
 		reference := cmd.Flag("ref").Value.String()
 		if key.Changed {
-			fmt.Println("here is the key:", key.Value)
+			data, err := ioutil.ReadFile(key.Value.String())
+			if err != nil {
+				log.Fatalf("Error reading public key file: %v\n", err)
+			}
+			publicKey = string(data)
 		}
 
 		dir := cmd.Flag("path").Value.String()
