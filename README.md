@@ -12,5 +12,5 @@ Small utility to check that HEAD commit on provided git repository was signed us
 ## Using
 
 ```bash
-verify-commit -dir ~/some/git-repo
+verify-commit sigcheck -p ~/some/git-repo
 ```
