@@ -16,3 +16,6 @@ vendor/
 
 # this should be added by build script
 key.go
+
+# compiled binaries
+build/
